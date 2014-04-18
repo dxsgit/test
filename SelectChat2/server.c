@@ -18,10 +18,16 @@ typedef struct cList{
     struct cList * next;
 }CList;
 
+typedef struct NetData{
+    char name[14];
+    char buf[MAX_SIZE+1];
+}NetData;
+
 void initCList(CList *cl)
 {
     cl = NULL;
 }
+
 
 CList* addClient(CList **pcl, int fd)
 {
@@ -152,9 +158,8 @@ int main(int argc, char **argv)
     
     fd_set  rfds;
     int max_fd= 0;
-    char buf[MAX_SIZE+1];
     int opt;
-    while((opt = getopt(argc, argv, ":p:i:n:")) != -1){
+    while((opt = getopt(argc, argv, ":p:i:n:h")) != -1){
         switch(opt){
             case 'p':
                 port = atoi(optarg);
@@ -165,6 +170,7 @@ int main(int argc, char **argv)
             case 'i':
                 strcpy(ip, optarg);
                 break;
+            case 'h':
             default:
                 printf("%s [-p port] [-i ipaddr] [-n number]\n", argv[0]);
                 return 1;
@@ -179,7 +185,9 @@ int main(int argc, char **argv)
         perror("socket create failed!");
         return 1;
     }
-
+    NetData m_netdata;
+    memset(&m_netdata, 0,sizeof(m_netdata));
+    sprintf(m_netdata.name,"服务器%d", g_fd);
     // 设置地址
     bzero(&s_addr, sizeof(s_addr));
     s_addr.sin_family = AF_INET;
@@ -198,8 +206,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    int cur_fd = -1;
-    int i = 0;
     printf("------等待客户端建立连接请求-------\n");
 
     // 处理收发数据
@@ -221,25 +227,37 @@ int main(int argc, char **argv)
         }
         else if (rst > 0){
             CList *p = NULL;
-            if(FD_ISSET(0,&rfds) && cur_fd != -1){
+            if(FD_ISSET(0,&rfds)){
                 // 发送数据
-                bzero(buf,sizeof(buf));
+                bzero(m_netdata.buf,sizeof(m_netdata.buf));
                 //                printf("请输入发给客户端的消息：\n");
-                fgets(buf, MAX_SIZE, stdin);
-                if( !strncasecmp(buf, "quit", 4)){
+
+                // 获取用户输入
+                fgets(m_netdata.buf, MAX_SIZE, stdin);
+                while(m_netdata.buf[0] == '\0'){
+                    printf("内容不能为空!\n");
+                    fgets(m_netdata.buf, MAX_SIZE, stdin);
+                }
+                if( !strncasecmp(m_netdata.buf, "quit", 4)){
                     printf("退出聊天\n");
                     break;
                 }
-                len = send(cur_fd, buf, strlen(buf) - 1, 0);
-                if(len > 0){
-                    printf("S -> C [%d]:%s \n", cur_fd, buf);
+
+                // 遍历客户端，发送给每一个客户端
+                CList *plt = g_clientList;
+                while(plt != NULL){
+                    len =  send(plt->fd, (const void*)&m_netdata,sizeof(NetData),0);
+                    if(len <= 0){
+                        printf("消息;%s 发送失败,错误信息:%s\n",m_netdata.buf,strerror(errno));
+                        printf("聊天终止！\n");
+                    }
+                    plt = plt->next;
                 }
-                else{
-                    printf("消息;%s 发送失败,错误信息:%s\n",buf,strerror(errno));
-                    printf("聊天终止！\n");
-                    break;
-                }
+
+                // 服务器打印一份内容
+                printf("我说:\n\t%s", m_netdata.buf);
             }
+            // 新来一个客户端
             if(FD_ISSET(g_fd,&rfds)){
                 len = sizeof(struct sockaddr);
                 if((c_fd = accept(g_fd, (struct sockaddr *)&c_addr, &len)) == -1){
@@ -249,26 +267,29 @@ int main(int argc, char **argv)
                 // 打印客户端的ip和port
                 printf("客户SOCK:%d,客户端IP:%s,端口号:%d\n",c_fd, inet_ntoa(c_addr.sin_addr), c_addr.sin_port);
                 
-                //插入数据
+                // 将客户端插入链表中
                 addClient(&g_clientList, c_fd);
-               // FD_SET(c_fd, &rfds);
-                if(g_clientList != NULL && g_clientList->fd > max_fd){
-                    max_fd = g_clientList->fd;
-                }
             }
-            // 遍历客户端发来的数据
+            // 处理客户端发来的数据
             p = g_clientList;
             while(p != NULL ){
                 if(FD_ISSET(p->fd, &rfds)){
                     printf("ok client: fd = %d\n",p->fd);
                     // 接收数据
                     c_fd = p->fd;
-                    bzero(buf,sizeof(buf));
-                    len = recv(c_fd, buf, MAX_SIZE, 0);
+                    NetData netdata;
+                    bzero(&netdata, sizeof(NetData));
+                    len = recv(c_fd, (void *)&netdata, sizeof(NetData), 0);
+                    sprintf(netdata.name,"客户端%d",c_fd);
                     if(len > 0){
-                        cur_fd = c_fd;
-                        printf("C[%d] -> S [%d]:%s \n", i, c_fd, buf);
-                        sleep(20);
+                        CList *plt = g_clientList;
+                        while(plt != NULL){
+                            if(plt->fd != c_fd){
+                                send(plt->fd, (const void*)&netdata,sizeof(netdata),0);
+                            } 
+                            plt = plt->next;
+                        }
+                        printf("%s说:\n\t%s", netdata.name, netdata.buf);
                         p = p->next;
                     }
                     else if(len < 0){
