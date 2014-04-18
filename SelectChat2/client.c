@@ -76,7 +76,7 @@ int main(int argc, char **argv)
         int rst = select(sockfd+1,&rfds,NULL,NULL,&tv);
 
         if(rst == -1){
-            printf("聊天终止，select出错，信息：%s\n",strerror(errno));
+            printf("终止，select出错，信息：%s\n",strerror(errno));
             break;
         }
         else if (rst > 0){
@@ -91,12 +91,12 @@ int main(int argc, char **argv)
                 }
                 else if(len < 0){
                     printf("消息接收失败,错误信息:%s\n", strerror(errno));
-                    printf("聊天终止！\n");
+                    printf("终止！\n");
                     break;
                 }
                 else{
-                    printf("服务端退出聊天！\n");
-                    printf("聊天终止！\n");
+                    printf("牢房已关闭\n");
+                    printf("终止！\n");
                     break;
                 }
 
@@ -113,14 +113,14 @@ int main(int argc, char **argv)
                     fgets(m_netdata.buf, MAX_SIZE, stdin);
                 }
                 if( !strncasecmp(m_netdata.buf, "quit", 4)){
-                    printf("退出聊天\n");
+                    printf("退出\n");
                     break;
                 }
 
                 len =  send(sockfd, (const void*)&m_netdata,sizeof(NetData),0);
                 if(len <= 0){
                     printf("消息;%s 发送失败,错误信息:%s\n",m_netdata.buf,strerror(errno));
-                    printf("聊天终止！\n");
+                    printf("终止！\n");
                     break;
                 }
                 // 客户端打印一份内容

@@ -4,7 +4,6 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
@@ -63,7 +62,7 @@ CList* delClientNext(CList **pcl, CList *pl)
     else if(cl == pl){
         cl = cl->next;
         *pcl = cl;
-        printf("关闭客户端:%d\n",pl->fd);
+        printf("处决囚犯:%d\n",pl->fd);
         close(pl->fd);
         free(pl);
     }
@@ -73,7 +72,7 @@ CList* delClientNext(CList **pcl, CList *pl)
         }
         if(cl != NULL){
             cl = pl->next;
-            printf("关闭客户端:%d\n",pl->fd);
+            printf("处决囚犯:%d\n",pl->fd);
             close(pl->fd);
             free(pl);
         }
@@ -90,7 +89,7 @@ CList* delClient(CList **pcl, int fd)
     else if(cl->fd == fd){
         CList *p = cl;
         cl = cl->next;
-        printf("关闭客户端:%d\n",p->fd);
+        printf("处决囚犯:%d\n",p->fd);
         close(p->fd);
         free(p);
     }
@@ -102,7 +101,7 @@ CList* delClient(CList **pcl, int fd)
         if(p != NULL){
             CList *q = p->next;
             p = q->next;
-            printf("关闭客户端:%d\n",q->fd);
+            printf("处决囚犯:%d\n",q->fd);
             close(q->fd);
             free(q);
         }
@@ -116,7 +115,7 @@ void destoryCList(CList **pcl){
     while(p != NULL){
         CList *q = p;
         p = p->next;
-        printf("关闭客户端:%d\n",q->fd);
+        printf("处决囚犯:%d\n",q->fd);
         close(q->fd);
         free(q);
     }
@@ -132,7 +131,7 @@ void sigfun(int sig)
 {
     destoryCList(&g_clientList);
     if(g_fd > 0){
-        printf("关闭服务器:%d\n",g_fd);
+        printf("关闭牢房:%d\n",g_fd);
         close(g_fd);
     }
 }
@@ -187,7 +186,7 @@ int main(int argc, char **argv)
     }
     NetData m_netdata;
     memset(&m_netdata, 0,sizeof(m_netdata));
-    sprintf(m_netdata.name,"服务器%d", g_fd);
+    sprintf(m_netdata.name,"警长");
     // 设置地址
     bzero(&s_addr, sizeof(s_addr));
     s_addr.sin_family = AF_INET;
@@ -206,7 +205,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("------等待客户端建立连接请求-------\n");
+    printf("------等待囚犯建立连接请求-------\n");
 
     // 处理收发数据
     while(1){
@@ -222,7 +221,7 @@ int main(int argc, char **argv)
         int rst = select(max_fd+1,&rfds,NULL,NULL,&tv);
 
         if(rst == -1){
-            printf("聊天终止，select出错，信息：%s\n",strerror(errno));
+            printf("终止，select出错，信息：%s\n",strerror(errno));
             break;
         }
         else if (rst > 0){
@@ -230,7 +229,7 @@ int main(int argc, char **argv)
             if(FD_ISSET(0,&rfds)){
                 // 发送数据
                 bzero(m_netdata.buf,sizeof(m_netdata.buf));
-                //                printf("请输入发给客户端的消息：\n");
+                //                printf("请输入发给囚犯的消息：\n");
 
                 // 获取用户输入
                 fgets(m_netdata.buf, MAX_SIZE, stdin);
@@ -239,17 +238,17 @@ int main(int argc, char **argv)
                     fgets(m_netdata.buf, MAX_SIZE, stdin);
                 }
                 if( !strncasecmp(m_netdata.buf, "quit", 4)){
-                    printf("退出聊天\n");
+                    printf("退出\n");
                     break;
                 }
 
-                // 遍历客户端，发送给每一个客户端
+                // 遍历囚犯，发送给每一个囚犯
                 CList *plt = g_clientList;
                 while(plt != NULL){
                     len =  send(plt->fd, (const void*)&m_netdata,sizeof(NetData),0);
                     if(len <= 0){
                         printf("消息;%s 发送失败,错误信息:%s\n",m_netdata.buf,strerror(errno));
-                        printf("聊天终止！\n");
+                        printf("终止！\n");
                     }
                     plt = plt->next;
                 }
@@ -257,20 +256,20 @@ int main(int argc, char **argv)
                 // 服务器打印一份内容
                 printf("我说:\n\t%s", m_netdata.buf);
             }
-            // 新来一个客户端
+            // 新来一个囚犯
             if(FD_ISSET(g_fd,&rfds)){
                 len = sizeof(struct sockaddr);
                 if((c_fd = accept(g_fd, (struct sockaddr *)&c_addr, &len)) == -1){
                     perror("socket accept failed");
                     return 1;
                 }
-                // 打印客户端的ip和port
-                printf("客户SOCK:%d,客户端IP:%s,端口号:%d\n",c_fd, inet_ntoa(c_addr.sin_addr), c_addr.sin_port);
+                // 打印囚犯的ip和port
+                printf("囚犯:%d,囚犯端编码:%s,囚犯ID:%d\n",c_fd, inet_ntoa(c_addr.sin_addr), c_addr.sin_port);
                 
-                // 将客户端插入链表中
+                // 将囚犯插入链表中
                 addClient(&g_clientList, c_fd);
             }
-            // 处理客户端发来的数据
+            // 处理囚犯发来的数据
             p = g_clientList;
             while(p != NULL ){
                 if(FD_ISSET(p->fd, &rfds)){
@@ -280,7 +279,7 @@ int main(int argc, char **argv)
                     NetData netdata;
                     bzero(&netdata, sizeof(NetData));
                     len = recv(c_fd, (void *)&netdata, sizeof(NetData), 0);
-                    sprintf(netdata.name,"客户端%d",c_fd);
+                    sprintf(netdata.name,"囚犯%d",c_fd);
                     if(len > 0){
                         CList *plt = g_clientList;
                         while(plt != NULL){
@@ -295,11 +294,11 @@ int main(int argc, char **argv)
                     else if(len < 0){
                         printf("消息接收失败,错误信息:%s\n", strerror(errno));
                         p = delClientNext(&g_clientList,p);
-                        printf("聊天终止！\n");
+                        printf("终止！\n");
                         continue;
                     }
                     else{
-                        printf("客户端退出聊天！\n");
+                        printf("囚犯退出！\n");
                         p = delClientNext(&g_clientList,p);
                         printf("聊天终止！\n");
                         continue;
@@ -313,6 +312,7 @@ int main(int argc, char **argv)
         }
     }
     destoryCList(&g_clientList);
+    printf("关闭牢房:%d\n",g_fd);
     close(g_fd);
     return 0;
 }
